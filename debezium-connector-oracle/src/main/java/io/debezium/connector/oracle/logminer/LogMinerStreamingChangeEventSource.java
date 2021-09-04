@@ -105,7 +105,7 @@ public class LogMinerStreamingChangeEventSource implements StreamingChangeEventS
             startScn = offsetContext.getScn();
 
             try (LogWriterFlushStrategy flushStrategy = resolveFlushStrategy()) {
-                if (!isContinuousMining && startScn.compareTo(getFirstScnInLogs(jdbcConnection)) < 0) {
+                if (!isContinuousMining && startScn.compareTo(getFirstScnInLogs(jdbcConnection, archiveLogRetention, archiveDestinationName)) < 0) {
                     throw new DebeziumException(
                             "Online REDO LOG files or archive log files do not contain the offset scn " + startScn + ".  Please perform a new snapshot.");
                 }
@@ -194,11 +194,13 @@ public class LogMinerStreamingChangeEventSource implements StreamingChangeEventS
      * Gets the first system change number in both archive and redo logs.
      *
      * @param connection database connection, should not be {@code null}
+     * @param archiveLogRetention duration that archive logs are mined
+     * @param archiveDestinationName configured archive destination name to use, may be {@code null}
      * @return the oldest system change number
      * @throws SQLException if a database exception occurred
      * @throws DebeziumException if the oldest system change number cannot be found due to no logs available
      */
-    private Scn getFirstScnInLogs(OracleConnection connection) throws SQLException {
+    public static Scn getFirstScnInLogs(OracleConnection connection, Duration archiveLogRetention, String archiveDestinationName) throws SQLException {
         String oldestScn = connection.singleOptionalValue(SqlUtils.oldestFirstChangeQuery(archiveLogRetention, archiveDestinationName), rs -> rs.getString(1));
         if (oldestScn == null) {
             throw new DebeziumException("Failed to calculate oldest SCN available in logs");
